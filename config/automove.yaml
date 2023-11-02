@@ -1,0 +1,12 @@
+auto_move4_node:
+  ros__parameters:
+    maxSpeed: 3.14
+    upperRight: 0x160
+    upperLeft: 0x16c
+    lowerLeft: 0x164
+    lowerRight: 0x168
+    velButton: 6
+    disButton: 1
+    targetX : 12.56
+    targetY : 12.56
+    # syoukou: 0x154
