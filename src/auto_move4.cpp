@@ -4,8 +4,8 @@
 #include <can_utils.hpp>
 #include <auto_move/auto_move4.hpp>
 
+#include <cmath>
 #include <chrono>
-
 
 using namespace std::chrono_literals;
 using std::placeholders::_1;
@@ -24,6 +24,7 @@ class AutoMove : public rclcpp::Node
     size_t count_;
     ShirasuLegID shirasuID_;//シラスのID
     Location location_;
+    Location initLocation_;
     Velocity velocity_;
     Location target_;
     uint8_t automode = 0;
@@ -44,15 +45,15 @@ AutoMove::AutoMove(/* args */) : Node("auto_move4_node"), count_(0)
     can_subscriber_ = this->create_subscription<can_plugins2::msg::Frame>("can_rx", 10, std::bind(&AutoMove::can_callback, this, _1));
     param_subscriber_ = std::make_shared<rclcpp::ParameterEventHandler>(this);
     timer_ = this->create_wall_timer(1ms, std::bind(&AutoMove::timer_callback, this));
-    this->declare_parameter("velButton", 2);
+    this->declare_parameter("velButton", 6);
     this->declare_parameter("disButton", 1);
     this->declare_parameter("maxSpeed", 6.28f);
     this->declare_parameter("upperRight", 0x160);
-    this->declare_parameter("upperLeft", 0x164);
-    this->declare_parameter("lowerLeft", 0x168);
-    this->declare_parameter("lowerRight", 0x16c);
-    this->declare_parameter("targetX", 0.0f);
-    this->declare_parameter("targetY", 0.0f);
+    this->declare_parameter("upperLeft", 0x16c);
+    this->declare_parameter("lowerLeft", 0x164);
+    this->declare_parameter("lowerRight", 0x168);
+    this->declare_parameter("targetX", 20.0f);
+    this->declare_parameter("targetY", 20.0f);
     auto param_callback = [this](const rclcpp::Parameter & p) {
         
         switch(p.get_type())
@@ -63,6 +64,9 @@ AutoMove::AutoMove(/* args */) : Node("auto_move4_node"), count_(0)
             p.get_name().c_str(),
             p.get_type_name().c_str(),
             p.as_double());
+            if(p.get_name() == "maxSpeed") maxSpeed = p.as_double();
+            if(p.get_name() == "targetX") target_.x = p.as_double();
+            if(p.get_name() == "targetY") target_.y = p.as_double();
             break;
         case rclcpp::ParameterType::PARAMETER_INTEGER:
             RCLCPP_INFO(
@@ -70,13 +74,18 @@ AutoMove::AutoMove(/* args */) : Node("auto_move4_node"), count_(0)
             p.get_name().c_str(),
             p.get_type_name().c_str(),
             p.as_int());
+            if(p.get_name() == "upperRight") shirasuID_.upperRightID = p.as_int();
+            if(p.get_name() == "upperLeft") shirasuID_.upperLeftID = p.as_int();
+            if(p.get_name() == "lowerLeft") shirasuID_.lowerLeftID = p.as_int();
+            if(p.get_name() == "lowerRight") shirasuID_.lowerRightID = p.as_int();
             break;
         
         default:
             break;
         }
         
-      };
+    };
+
     cb_handle_[0] = param_subscriber_->add_parameter_callback("maxSpeed", param_callback);
     cb_handle_[1] = param_subscriber_->add_parameter_callback("upperRight", param_callback);
     cb_handle_[2] = param_subscriber_->add_parameter_callback("upperLeft", param_callback);
@@ -90,28 +99,32 @@ AutoMove::AutoMove(/* args */) : Node("auto_move4_node"), count_(0)
 
 void AutoMove::timer_callback()
 {
-    location_.x = location_.x + (-velocity_.upperRight - velocity_.upperLeft + velocity_.lowerLeft + velocity_.lowerRight)/static_cast<float>(sqrt(2))*0.001;
-    location_.y = location_.y + (velocity_.upperRight - velocity_.upperLeft - velocity_.lowerLeft + velocity_.lowerRight)/static_cast<float>(sqrt(2))*0.001;
+    location_.x = -(-velocity_.upperRight - velocity_.upperLeft + velocity_.lowerLeft + velocity_.lowerRight);
+    location_.y = -(velocity_.upperRight - velocity_.upperLeft + velocity_.lowerLeft - velocity_.lowerRight);
+
+    RCLCPP_INFO(this->get_logger(), "loc x: %f, y: %f", location_.x, location_.y);
 }
 
 void AutoMove::can_callback(const can_plugins2::msg::Frame::SharedPtr msg){
     uint8_t data[4] = {msg->data[3],msg->data[2],msg->data[1],msg->data[0]};
-    if(this->get_parameter("upperRight").as_int() == msg->id){
+    if((this->get_parameter("upperRight").as_int()+2) == msg->id){
         std::memcpy(&velocity_.upperRight,&data[0],sizeof(float));
-    }else if(this->get_parameter("upperLeft").as_int() == msg->id){
+        //RCLCPP_INFO(this->get_logger(),"%f",velocity_.upperRight);
+    }else if((this->get_parameter("upperLeft").as_int()+2) == msg->id){
         std::memcpy(&velocity_.upperLeft,&data[0],sizeof(float));
-    }else if(this->get_parameter("lowerLeft").as_int() == msg->id){
+    }else if((this->get_parameter("lowerLeft").as_int()+2) == msg->id){
         std::memcpy(&velocity_.lowerLeft,&data[0],sizeof(float));
-    }else if(this->get_parameter("lowerRight").as_int() == msg->id){
+    }else if((this->get_parameter("lowerRight").as_int()+2) == msg->id){
         std::memcpy(&velocity_.lowerRight,&data[0],sizeof(float));
     }
 }
 
 void AutoMove::shirasuValuePublish(float upperRight,float upperLeft,float lowerLeft,float lowerRight){
-  publisher_->publish(shirasu_frame(shirasuID_.upperRightID+1, upperRight));
-  publisher_->publish(shirasu_frame(shirasuID_.upperLeftID+1, upperLeft));
-  publisher_->publish(shirasu_frame(shirasuID_.lowerLeftID+1, lowerLeft));
-  publisher_->publish(shirasu_frame(shirasuID_.lowerRightID+1, lowerRight));
+  //RCLCPP_INFO(this->get_logger(), "-upperRight: %f", -upperRight);
+  publisher_->publish(shirasu_frame(shirasuID_.upperRightID+1, -upperRight));
+  publisher_->publish(shirasu_frame(shirasuID_.upperLeftID+1, -upperLeft));
+  publisher_->publish(shirasu_frame(shirasuID_.lowerLeftID+1, -lowerLeft));
+  publisher_->publish(shirasu_frame(shirasuID_.lowerRightID+1, -lowerRight));
   //100右上、110左上、120左下、130右下
 }
 
@@ -124,8 +137,8 @@ void AutoMove::shirasuModePublish(uint8_t upperRight,uint8_t upperLeft,uint8_t l
 }
 
 void AutoMove::reset(){
-    location_.x = 0.0f;
-    location_.y = 0.0f;
+    initLocation_.x = location_.x;
+    initLocation_.y = location_.y;
     velocity_.upperRight = 0.0f;
     velocity_.upperLeft = 0.0f;
     velocity_.lowerLeft = 0.0f;
@@ -153,21 +166,23 @@ void AutoMove::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
         automode = 1;
     }
 
-    if(automode==1){
-        x = log10(target_.x-location_.x);
-        y = log10(target_.y-location_.y);
-        shirasuValuePublish(maxSpeed*(y-x),maxSpeed*(-x-y),maxSpeed*(x-y),maxSpeed*(x+y));
-        if((location_.x < 10)&&(location_.y < 10)){
+    if(automode == 1){
+        if(std::isnan(maxSpeed)) RCLCPP_ERROR(this->get_logger(), "maxSpeed is NaN!");
+        float xt = (target_.x-(location_.x-initLocation_.x))/10.0;
+        float yt = (target_.y-(location_.y-initLocation_.y))/10.0;
+        shirasuValuePublish(maxSpeed*(yt-xt),maxSpeed*(-xt-yt),maxSpeed*(xt+yt),maxSpeed*(xt-yt));
+        if(((target_.x-(location_.x-initLocation_.x))*(target_.x-(location_.x-initLocation_.x)) < 10.0)&&((target_.y-(location_.y-initLocation_.y)*(target_.y-(location_.y-initLocation_.y)) < 10.0))){
+            shirasuValuePublish(0.0f,0.0f,0.0f,0.0f);
             automode = 2;
         }
     }
 
-    if(automode== 2){
+    if(automode == 2){
         RCLCPP_INFO(this->get_logger(),"AutoMove Finished");
         automode = 0;
     }
 
-    if(automode==0){
+    if(automode == 0){
         float r= 0;
         if(msg->buttons[4]==1){
         r =1.0f;//↑左回転
@@ -178,15 +193,15 @@ void AutoMove::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
         else if(msg->buttons[4] == msg->buttons[5]){
         r =0.0f;
         }
-        if(r != 0){
-        shirasuValuePublish(maxSpeed*(y-x+r),maxSpeed*(-x-y+r),maxSpeed*(x-y+r),maxSpeed*(x+y+r));
+        if(((x != 0) || (y != 0))||(r != 0)){
+        shirasuValuePublish(maxSpeed*(y-x+r),maxSpeed*(-x-y+r),maxSpeed*(x+y+r),maxSpeed*(x-y+r));
         //chatter.publish(get_frame(0x101, x/static_cast<float>(sqrt(2))-y/static_cast<float>(sqrt(2))));
         count = 0;
 
-        RCLCPP_INFO(this->get_logger(), "Publishing:bokuha warukunai!");
-        std::string str = std::to_string(r);
-        const char* cstr = str.c_str();
-        RCLCPP_INFO(this->get_logger(), cstr);
+        // RCLCPP_INFO(this->get_logger(), "Publishing:bokuha warukunai!");
+        // std::string str = std::to_string(r);
+        // const char* cstr = str.c_str();
+        // RCLCPP_INFO(this->get_logger(), cstr);
         }else{
         if(count == 0){
             shirasuValuePublish(0.0f,0.0f,0.0f,0.0f);
