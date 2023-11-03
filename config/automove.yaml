@@ -7,6 +7,6 @@ auto_move4_node:
     lowerRight: 0x168
     velButton: 6
     disButton: 1
-    targetX : 25.12
-    targetY : 25.12
+    targetX : 20.0
+    targetY : 20.0
     # syoukou: 0x154

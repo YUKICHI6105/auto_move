@@ -35,6 +35,7 @@ class AutoMove : public rclcpp::Node
     void shirasuModePublish(uint8_t upperRight,uint8_t upperLeft,uint8_t lowerLeft,uint8_t lowerRight);
     void reset();
     uint8_t count = 0;
+    uint16_t autocount = 0;
     float maxSpeed = 0.0f;//厳密にはちょっと違う。
 };
 
@@ -164,20 +165,42 @@ void AutoMove::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     if(msg->buttons[3]==1){
         reset();
         automode = 1;
+        autocount = 0;
     }
 
     if(automode == 1){
         if(std::isnan(maxSpeed)) RCLCPP_ERROR(this->get_logger(), "maxSpeed is NaN!");
-        float xt = (target_.x-(location_.x-initLocation_.x))/10.0;
-        float yt = (target_.y-(location_.y-initLocation_.y))/10.0;
-        shirasuValuePublish(maxSpeed*(yt-xt),maxSpeed*(-xt-yt),maxSpeed*(xt+yt),maxSpeed*(xt-yt));
-        if(((target_.x-(location_.x-initLocation_.x))*(target_.x-(location_.x-initLocation_.x)) < 10.0)&&((target_.y-(location_.y-initLocation_.y)*(target_.y-(location_.y-initLocation_.y)) < 10.0))){
+        x = (target_.x-(location_.x-initLocation_.x));
+        y = (target_.y-(location_.y-initLocation_.y));
+        float r1 = sqrt(x*x+y*y);
+        float xt = x/r1;
+        float yt = y/r1;
+        if(autocount < 100) {
+            autocount++;
+            xt = xt*(autocount/100.0f);
+            yt = yt*(autocount/100.0f);
+        }
+        if(autocount == 100) autocount = 0;
+        // if(r1 < 300.0f){
+        //     xt = xt*(r1/300.0f);
+        //     yt = yt*(r1/300.0f);
+        // }
+        shirasuValuePublish(maxSpeed*(yt-xt)/4,maxSpeed*(-xt-yt)/4,maxSpeed*(xt+yt)/4,maxSpeed*(xt-yt)/4);
+        if(((target_.x-(location_.x-initLocation_.x))*(target_.x-(location_.x-initLocation_.x)) < 20.0)&&((target_.y-(location_.y-initLocation_.y)*(target_.y-(location_.y-initLocation_.y)) < 20.0))){
             shirasuValuePublish(0.0f,0.0f,0.0f,0.0f);
             automode = 2;
         }
     }
+    if(automode==2){
+        shirasuValuePublish(0.0f,0.0f,0.0f,0.0f);
+        automode = 3;
+    }
+    if(automode==3){
+        shirasuValuePublish(0.0f,0.0f,0.0f,0.0f);
+        automode = 4;
+    }
 
-    if(automode == 2){
+    if(automode == 4){
         RCLCPP_INFO(this->get_logger(),"AutoMove Finished");
         automode = 0;
     }

@@ -3,9 +3,9 @@
     <node pkg="joy" exec="joy_node" name="joy_node">
     </node>
   
-    <node pkg="auto_move" exec="auto_move4_node" name="auto_move4_node">
+    <!-- <node pkg="auto_move" exec="auto_move4_node" name="auto_move4_node">
       <param from="$(find-pkg-share auto_move)/config/automove.yaml"/>
-    </node>
+    </node> -->
   
     <node pkg="solenoid_valve_ros2" exec="solenoid_valve_ros2" name="solenoid_valve_ros2">
       <param from="$(find-pkg-share solenoid_valve_ros2)/config/solenoid.yaml"/>
