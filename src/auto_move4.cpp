@@ -53,6 +53,7 @@ AutoMove::AutoMove(/* args */) : Node("auto_move4_node"), count_(0)
     this->declare_parameter("upperLeft", 0x16c);
     this->declare_parameter("lowerLeft", 0x164);
     this->declare_parameter("lowerRight", 0x168);
+    this->declare_parameter("syoukouID", 0x154);
     this->declare_parameter("targetX", 20.0f);
     this->declare_parameter("targetY", 20.0f);
     auto param_callback = [this](const rclcpp::Parameter & p) {
@@ -79,6 +80,7 @@ AutoMove::AutoMove(/* args */) : Node("auto_move4_node"), count_(0)
             if(p.get_name() == "upperLeft") shirasuID_.upperLeftID = p.as_int();
             if(p.get_name() == "lowerLeft") shirasuID_.lowerLeftID = p.as_int();
             if(p.get_name() == "lowerRight") shirasuID_.lowerRightID = p.as_int();
+            if(p.get_name() == "syoukouID") shirasuID_.syoukouID = p.as_int();
             break;
         
         default:
@@ -150,14 +152,20 @@ void AutoMove::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
 {
     if(msg->buttons[this->get_parameter("velButton").as_int()]==1){
       shirasuModePublish(5,5,5,5);
-      //publisher_->publish(get_frame(shirasuID.syoukouID,static_cast<uint8_t>(5)));
+    //   publisher_->publish(get_frame(0x154,static_cast<uint8_t>(5)));
     }
 
     if(msg->buttons[this->get_parameter("disButton").as_int()]==1){
       shirasuModePublish(0,0,0,0);
       reset();
-      //publisher_->publish(get_frame(shirasuID.syoukouID,static_cast<uint8_t>(0)));
+      publisher_->publish(get_frame(0x154,static_cast<uint8_t>(0)));
     }
+
+    // if(msg->buttons[3]==1){
+    //     publisher_->publish(shirasu_frame(0x155,static_cast<float>(-1.0f)));
+    // }else{
+    //     publisher_->publish(shirasu_frame(0x155, static_cast<float>(0.0f)));
+    // }
 
     float x= -(msg->axes[0]);
     float y=  (msg->axes[1]);
@@ -181,10 +189,10 @@ void AutoMove::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
             yt = yt*(autocount/100.0f);
         }
         if(autocount == 100) autocount = 0;
-        // if(r1 < 300.0f){
-        //     xt = xt*(r1/300.0f);
-        //     yt = yt*(r1/300.0f);
-        // }
+        if(r1 < 300.0f){
+            xt = xt*(r1/300.0f);
+            yt = yt*(r1/300.0f);
+        }
         shirasuValuePublish(maxSpeed*(yt-xt)/4,maxSpeed*(-xt-yt)/4,maxSpeed*(xt+yt)/4,maxSpeed*(xt-yt)/4);
         if(((target_.x-(location_.x-initLocation_.x))*(target_.x-(location_.x-initLocation_.x)) < 20.0)&&((target_.y-(location_.y-initLocation_.y)*(target_.y-(location_.y-initLocation_.y)) < 20.0))){
             shirasuValuePublish(0.0f,0.0f,0.0f,0.0f);
